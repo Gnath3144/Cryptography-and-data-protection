@@ -9,9 +9,9 @@ This guide provides the complete blueprint to set up all 4 classroom automations
 
 | # | Automation Name | Trigger | Actions |
 |---|---|---|---|
-| **1** | **Daily Attendance Check-in** | Scheduled daily at class start time (e.g. 09:00 AM) | Posts interactive Check-in card ➔ Sends Webhook to Google Sheet ➔ Logs `TRUE` next to student email. |
+| **1** | **Daily Attendance Check-in** | Scheduled daily at class start time (07:50 AM) | Posts interactive Check-in card ➔ Sends Webhook to Google Sheet ➔ Logs `TRUE` next to student email. |
 | **2** | **Student Welcome & Onboarding** | New member joins `#board-infinity` | Auto-sends private DM with Syllabus, Google Drive, and GitHub repo links. |
-| **3** | **Daily Exit Ticket (Comprehension Pulse)** | Scheduled at class end (e.g. 10:50 AM) | Posts 1-click feedback poll (*"How confident do you feel about today's cipher?"*). |
+| **3** | **Daily Exit Ticket (Comprehension Pulse)** | Scheduled at class end (10:45 AM - 10:50 AM) | Posts 1-click feedback poll (*"How confident do you feel about today's cipher?"*). |
 | **4** | **Raise a Doubt / Lab Help Queue** | Channel Shortcut button `⚡ Ask a Question` | Student submits question in a modal ➔ Formats and posts ticket to instructor queue. |
 
 ---
@@ -23,13 +23,13 @@ This guide provides the complete blueprint to set up all 4 classroom automations
 3. Name it: `Daily Attendance Check-in`.
 4. **Choose a trigger**:
    - Select **On a schedule**.
-   - Frequency: Every weekday (Monday to Friday) at your class time (e.g. `09:00 AM`).
+   - Frequency: Every weekday (Monday to Friday) at `07:50 AM`.
 5. **Add Step 1: Send a message**:
    - Send to: **Channel** ➔ `#board-infinity`.
    - Message text:
      ```markdown
-     📢 *Good morning class! Attendance check-in is now open.*
-     Please click the button below within the next 15 minutes to register your presence for today's session in *Cryptography & Data Protection*.
+     📢 *Good morning class! Class is in session (07:50 AM – 10:50 AM).*
+     Please click the button below within the 15-minute window (07:50 AM – 08:05 AM) to register your presence for today's session in *Cryptography & Data Protection*.
      ```
    - Check the box: **Add a button**.
    - Button label: `🟢 Check In Now`

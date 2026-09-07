@@ -8,13 +8,13 @@
           "interval": [
             {
               "field": "cronExpression",
-              "expression": "0 9 * * 1-5"
+              "expression": "50 7 * * 1-5"
             }
           ]
         }
       },
-      "id": "schedule-trigger-0900",
-      "name": "Class Time Schedule (09:00 AM)",
+      "id": "schedule-trigger-0750",
+      "name": "Class Time Schedule (07:50 AM)",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
       "position": [200, 200]
@@ -22,7 +22,7 @@
     {
       "parameters": {
         "channel": "C0C0U2PJ43A",
-        "text": "📢 Good morning class! Attendance check-in is now active for Cryptography & Data Protection.",
+        "text": "📢 Good morning class! Attendance check-in is now active for Cryptography & Data Protection (07:50 AM - 10:50 AM).",
         "blocksUi": {
           "blocksValues": [
             {
@@ -36,7 +36,7 @@
               "type": "section",
               "text": {
                 "type": "mrkdwn",
-                "text": "👋 Good morning! Please click the button below to mark your attendance for today's session.\n• *Channel*: `#board-infinity`\n• *Window*: Active for 15 minutes"
+                "text": "👋 Good morning! Class is in session (*07:50 AM – 10:50 AM*).\n• *Channel*: `#board-infinity`\n• *Check-in Window*: 07:50 AM – 08:05 AM (Active for 15 minutes)\nPlease click the button below to mark your attendance for today."
               }
             },
             {
@@ -157,7 +157,7 @@
     }
   ],
   "connections": {
-    "Class Time Schedule (09:00 AM)": {
+    "Class Time Schedule (07:50 AM)": {
       "main": [
         [
           {
