@@ -1,0 +1,363 @@
+{
+  "name": "Cryptography & Data Protection - Classroom Attendance & Slack Hub",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger-0900",
+      "name": "Class Time Schedule (09:00 AM)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 200]
+    },
+    {
+      "parameters": {
+        "channel": "C0C0U2PJ43A",
+        "text": "📢 Good morning class! Attendance check-in is now active for Cryptography & Data Protection.",
+        "blocksUi": {
+          "blocksValues": [
+            {
+              "type": "header",
+              "text": {
+                "type": "plain_text",
+                "text": "🔐 Cryptography & Data Protection - Daily Attendance"
+              }
+            },
+            {
+              "type": "section",
+              "text": {
+                "type": "mrkdwn",
+                "text": "👋 Good morning! Please click the button below to mark your attendance for today's session.\n• *Channel*: `#board-infinity`\n• *Window*: Active for 15 minutes"
+              }
+            },
+            {
+              "type": "actions",
+              "elements": [
+                {
+                  "type": "button",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "🟢 Check In for Today"
+                  },
+                  "style": "primary",
+                  "action_id": "crypto_attendance_checkin",
+                  "value": "checkin_clicked"
+                }
+              ]
+            },
+            {
+              "type": "context",
+              "elements": [
+                {
+                  "type": "mrkdwn",
+                  "text": "📌 Attendance syncs automatically to your official university register."
+                }
+              ]
+            }
+          ]
+        },
+        "otherOptions": {}
+      },
+      "id": "slack-post-checkin-prompt",
+      "name": "Post Check-in Card to #board-infinity",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [440, 200],
+      "credentials": {
+        "slackApi": {
+          "id": "slack-cred",
+          "name": "Slack API account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "slack-attendance-checkin",
+        "options": {}
+      },
+      "id": "webhook-slack-interaction",
+      "name": "Slack Interactivity Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 480],
+      "webhookId": "crypto-attendance-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse payload from Slack Block Kit interactive button click or slash command\nlet payload = $input.first().json;\n\n// Slack sends form-encoded payload for interactive components\nif (payload.body && typeof payload.body.payload === 'string') {\n  payload = JSON.parse(payload.body.payload);\n} else if (typeof payload.payload === 'string') {\n  payload = JSON.parse(payload.payload);\n}\n\nconst user = payload.user || {};\nconst userId = user.id || '';\nconst userName = user.name || user.username || 'Student';\nconst channelId = (payload.channel && payload.channel.id) ? payload.channel.id : 'C0C0U2PJ43A';\nconst responseUrl = payload.response_url || '';\n\n// Format today's date matching sheet format: DD-MM-YYYY (e.g. 07-09-2026)\nconst now = new Date();\nconst day = String(now.getDate()).padStart(2, '0');\nconst month = String(now.getMonth() + 1).padStart(2, '0');\nconst year = now.getFullYear();\nconst todayDateStr = `${day}-${month}-${year}`;\n\nreturn [{\n  json: {\n    userId,\n    userName,\n    channelId,\n    responseUrl,\n    todayDateStr,\n    timestamp: now.toISOString(),\n    targetSheetId: '1RdGz6eca5_t5xdSUiHtgF8OEb9l02ePW',\n    targetChannelId: 'C0C0U2PJ43A'\n  }\n}];"
+      },
+      "id": "parse-slack-payload",
+      "name": "Parse Slack Payload & Date",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 480]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "user": "={{ $json.userId }}"
+      },
+      "id": "get-slack-user-profile",
+      "name": "Get User University Email",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [660, 480],
+      "credentials": {
+        "slackApi": {
+          "id": "slack-cred",
+          "name": "Slack API account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const prev = $('Parse Slack Payload & Date').first().json;\nconst userProfile = $input.first().json.profile || {};\nconst email = (userProfile.email || '').trim().toLowerCase();\nconst realName = userProfile.real_name || prev.userName;\n\nreturn [{\n  json: {\n    ...prev,\n    email,\n    realName\n  }\n}];"
+      },
+      "id": "merge-email-data",
+      "name": "Merge Email & Student Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 480]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "documentId": {
+          "__rl": true,
+          "value": "1RdGz6eca5_t5xdSUiHtgF8OEb9l02ePW",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1241955991,
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "id": "read-google-sheet",
+      "name": "Read Student List Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1100, 480],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheet-cred",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const studentInfo = $('Merge Email & Student Data').first().json;\nconst sheetRows = $input.all();\nconst targetEmail = studentInfo.email;\n\nlet matchedRowIndex = -1;\nlet studentNameFound = '';\n\nfor (let i = 0; i < sheetRows.length; i++) {\n  const row = sheetRows[i].json;\n  const rowEmail = (row['Email'] || row['email'] || '').trim().toLowerCase();\n  if (rowEmail === targetEmail) {\n    matchedRowIndex = i + 2; // account for header rows\n    studentNameFound = row['Name'] || studentInfo.realName;\n    break;\n  }\n}\n\nreturn [{\n  json: {\n    ...studentInfo,\n    matched: matchedRowIndex !== -1,\n    rowNumber: matchedRowIndex,\n    studentName: studentNameFound || studentInfo.realName\n  }\n}];"
+      },
+      "id": "match-student-row",
+      "name": "Match Student Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1320, 480]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.matched }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "if-student-found",
+      "name": "Is Student Found in Sheet?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1540, 480]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1RdGz6eca5_t5xdSUiHtgF8OEb9l02ePW",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1241955991,
+          "mode": "id"
+        },
+        "dataMode": "defineBelow",
+        "fieldsUi": {
+          "values": [
+            {
+              "fieldId": "={{ $json.todayDateStr }}",
+              "fieldValue": "TRUE"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "update-attendance-true",
+      "name": "Mark Attendance TRUE in Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1780, 400],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "google-sheet-cred",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.responseUrl }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"response_type\": \"ephemeral\",\n  \"replace_original\": false,\n  \"text\": \"✅ *Attendance Confirmed!*\\nHello {{ $json.studentName }}, your attendance has been recorded as *PRESENT* for today ({{ $json.todayDateStr }}).\"\n}",
+        "options": {}
+      },
+      "id": "send-slack-confirmation",
+      "name": "Send Ephemeral Confirmation to Student",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2020, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.responseUrl }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"response_type\": \"ephemeral\",\n  \"replace_original\": false,\n  \"text\": \"⚠️ *Email Not Found!*\\nYour Slack account email ({{ $json.email }}) was not found in the official class roster. Please check that your Slack email matches your @jainuniversity.ac.in account.\"\n}",
+        "options": {}
+      },
+      "id": "send-slack-error",
+      "name": "Send Email Mismatch Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1780, 600]
+    }
+  ],
+  "connections": {
+    "Class Time Schedule (09:00 AM)": {
+      "main": [
+        [
+          {
+            "node": "Post Check-in Card to #board-infinity",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack Interactivity Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parse Slack Payload & Date",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Slack Payload & Date": {
+      "main": [
+        [
+          {
+            "node": "Get User University Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get User University Email": {
+      "main": [
+        [
+          {
+            "node": "Merge Email & Student Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Email & Student Data": {
+      "main": [
+        [
+          {
+            "node": "Read Student List Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Student List Sheet": {
+      "main": [
+        [
+          {
+            "node": "Match Student Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Match Student Email": {
+      "main": [
+        [
+          {
+            "node": "Is Student Found in Sheet?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Student Found in Sheet?": {
+      "main": [
+        [
+          {
+            "node": "Mark Attendance TRUE in Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Email Mismatch Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Attendance TRUE in Sheet": {
+      "main": [
+        [
+          {
+            "node": "Send Ephemeral Confirmation to Student",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
