@@ -1,0 +1,53 @@
+{
+  "display_information": {
+    "name": "Crypto Class Assistant",
+    "description": "Automated classroom management, attendance sync, and student support bot for Cryptography & Data Protection.",
+    "background_color": "#1e293b"
+  },
+  "features": {
+    "bot_user": {
+      "display_name": "CryptoBot",
+      "always_online": true
+    },
+    "slash_commands": [
+      {
+        "command": "/checkin",
+        "description": "Mark your daily attendance for Cryptography & Data Protection in Google Sheets",
+        "usage_hint": "[optional note]",
+        "should_escape": false
+      },
+      {
+        "command": "/course-links",
+        "description": "Get direct links to syllabus, attendance sheet, GitHub repo, and course slides",
+        "should_escape": false
+      },
+      {
+        "command": "/doubt",
+        "description": "Submit a technical question or lab issue for instructor review",
+        "usage_hint": "[your question]",
+        "should_escape": false
+      }
+    ]
+  },
+  "oauth_config": {
+    "scopes": {
+      "bot": [
+        "chat:write",
+        "chat:write.public",
+        "commands",
+        "channels:read",
+        "groups:read",
+        "users:read",
+        "users:read.email"
+      ]
+    }
+  },
+  "settings": {
+    "interactivity": {
+      "is_enabled": true
+    },
+    "org_deploy_enabled": false,
+    "socket_mode_enabled": false,
+    "token_rotation_enabled": false
+  }
+}
