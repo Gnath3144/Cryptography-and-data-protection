@@ -71,7 +71,13 @@
       "name": "Post Check-in Card to #board-infinity",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
-      "position": [440, 200]
+      "position": [440, 200],
+      "credentials": {
+        "slackApi": {
+          "id": "s3AqEZsbgUkota6O",
+          "name": "Slack account"
+        }
+      }
     },
     {
       "parameters": {
@@ -105,12 +111,18 @@
       "name": "Get Student University Email",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
-      "position": [660, 480]
+      "position": [660, 480],
+      "credentials": {
+        "slackApi": {
+          "id": "s3AqEZsbgUkota6O",
+          "name": "Slack account"
+        }
+      }
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.GOOGLE_SHEETS_WEBHOOK_URL || 'https://script.google.com/macros/s/AKfycbx_YOUR_SCRIPT_ID/exec' }}",
+        "url": "https://script.google.com/macros/s/AKfycbxyjzGoMgkJjpxu9ay8OgxnGPeazM7IUuS37nS31S1RmDoR6C6H7rw0sGRokaU5oh_3/exec",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={\n  \"email\": \"{{ $json.profile.email || $json.email }}\",\n  \"user_name\": \"{{ $json.profile.real_name || $json.userName }}\",\n  \"channel_id\": \"C0C0U2PJ43A\",\n  \"channel_name\": \"board-infinity\",\n  \"timestamp\": \"{{ $('Parse Slack Payload & Date').first().json.timestamp }}\"\n}",
