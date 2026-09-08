@@ -6,6 +6,9 @@
  * Target Sheet: Cryptographic and Data Protection Student list.xlsx (GID: 1241955991)
  */
 
+// Slack Incoming Webhook for #board-infinity announcements
+var SLACK_CHANNEL_WEBHOOK = PropertiesService.getScriptProperties().getProperty("SLACK_WEBHOOK_URL") || "https://hooks.slack.com/services/YOUR_WORKSPACE/YOUR_BOT/YOUR_TOKEN";
+
 function doGet(e) {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -139,8 +142,8 @@ function doPost(e) {
     // 3. Check current status
     var currentStatus = sheet.getRange(studentRow, targetCol).getValue();
     if (currentStatus === true) {
-      var alreadyMsg = "ℹ️ You are already marked PRESENT for today (" + today + ").";
-      postToSlack(responseUrl, alreadyMsg);
+      var alreadyMsg = "ℹ️ *Already Recorded:* You are already marked *PRESENT* for today (" + today + ").";
+      postToSlack(responseUrl, alreadyMsg, false);
       return formatOutput(isSlackInteraction, { status: "already_marked", message: alreadyMsg }, alreadyMsg);
     }
 
@@ -148,14 +151,18 @@ function doPost(e) {
     sheet.getRange(studentRow, targetCol).setValue(true);
     var successMsg = "✅ " + studentName + " (" + studentEmail + ") marked PRESENT for " + today + " in course register!";
 
-    postToSlack(responseUrl, successMsg);
+    // A. Send private ephemeral confirmation card to the student in Slack
+    postToSlack(responseUrl, successMsg, true, studentName, studentEmail, today);
+
+    // B. Send live attendance broadcast to #board-infinity channel
+    notifyChannelAttendance(studentName, studentEmail, today);
 
     return formatOutput(isSlackInteraction, {
       status: "success",
       message: successMsg,
       date: today,
       column: targetCol
-    }, successMsg);
+    }, successMsg, true, studentName, studentEmail, today);
 
   } catch (err) {
     var errMsg = "❌ Error recording attendance: " + err.toString();
@@ -219,17 +226,51 @@ function getOrCreateDateColumn(sheet, today) {
   return { column: newCol, isNew: true };
 }
 
-function postToSlack(responseUrl, text) {
+/**
+ * Private response to the individual student
+ */
+function postToSlack(responseUrl, text, isSuccess, studentName, studentEmail, today) {
   if (!responseUrl) return;
   try {
+    var payload = {
+      response_type: "ephemeral",
+      replace_original: false,
+      text: text
+    };
+    
+    if (isSuccess) {
+      payload.blocks = [
+        {
+          type: "header",
+          text: {
+            type: "plain_text",
+            text: "🎉 Attendance Confirmed!",
+            emoji: true
+          }
+        },
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: "✅ *Attendance successfully marked!*\n• *Student*: " + studentName + "\n• *Email*: `" + studentEmail + "`\n• *Date*: *" + today + "* (07:50 AM – 10:50 AM)\n• *Status*: *PRESENT* in official Google Sheet."
+          }
+        },
+        {
+          type: "context",
+          elements: [
+            {
+              type: "mrkdwn",
+              text: "🔒 Verified Course Register • Channel: *#board-infinity*"
+            }
+          ]
+        }
+      ];
+    }
+
     UrlFetchApp.fetch(responseUrl, {
       method: "post",
       contentType: "application/json",
-      payload: JSON.stringify({
-        response_type: "ephemeral",
-        replace_original: false,
-        text: text
-      }),
+      payload: JSON.stringify(payload),
       muteHttpExceptions: true
     });
   } catch (e) {
@@ -237,16 +278,63 @@ function postToSlack(responseUrl, text) {
   }
 }
 
-function formatOutput(isSlackInteraction, standardObj, slackText) {
+/**
+ * Live broadcast to #board-infinity channel
+ */
+function notifyChannelAttendance(studentName, studentEmail, today) {
+  if (!SLACK_CHANNEL_WEBHOOK) return;
+  try {
+    UrlFetchApp.fetch(SLACK_CHANNEL_WEBHOOK, {
+      method: "post",
+      contentType: "application/json",
+      payload: JSON.stringify({
+        text: "🎓 *Attendance Update:* ✅ *" + studentName + "* (`" + studentEmail + "`) has marked attendance for *" + today + "*."
+      }),
+      muteHttpExceptions: true
+    });
+  } catch (e) {
+    Logger.log("Channel webhook error: " + e);
+  }
+}
+
+function formatOutput(isSlackInteraction, standardObj, slackText, isSuccess, studentName, studentEmail, today) {
   if (isSlackInteraction) {
-    return ContentService.createTextOutput(JSON.stringify({
+    var resp = {
       response_type: "ephemeral",
       replace_original: false,
       text: slackText
-    })).setMimeType(ContentService.MimeType.JSON);
+    };
+    if (isSuccess) {
+      resp.blocks = [
+        {
+          type: "header",
+          text: {
+            type: "plain_text",
+            text: "🎉 Attendance Confirmed!",
+            emoji: true
+          }
+        },
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: "✅ *Attendance successfully marked!*\n• *Student*: " + studentName + "\n• *Email*: `" + studentEmail + "`\n• *Date*: *" + today + "* (07:50 AM – 10:50 AM)\n• *Status*: *PRESENT* in official Google Sheet."
+          }
+        },
+        {
+          type: "context",
+          elements: [
+            {
+              type: "mrkdwn",
+              text: "🔒 Verified Course Register • Channel: *#board-infinity*"
+            }
+          ]
+        }
+      ];
+    }
+    return ContentService.createTextOutput(JSON.stringify(resp)).setMimeType(ContentService.MimeType.JSON);
   } else {
-    return ContentService.createTextOutput(JSON.stringify(standardObj))
-      .setMimeType(ContentService.MimeType.JSON);
+    return ContentService.createTextOutput(JSON.stringify(standardObj)).setMimeType(ContentService.MimeType.JSON);
   }
 }
 
