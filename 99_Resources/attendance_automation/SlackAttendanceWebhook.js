@@ -6,6 +6,29 @@
  * Target Sheet: Cryptographic and Data Protection Student list.xlsx (GID: 1241955991)
  */
 
+function doGet(e) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName("Sheet1") || ss.getSheets()[0];
+    var today = Utilities.formatDate(new Date(), "Asia/Kolkata", "dd-MM-yyyy");
+    
+    var colInfo = getOrCreateDateColumn(sheet, today);
+    
+    return ContentService.createTextOutput(JSON.stringify({
+      status: "success",
+      date: today,
+      column: colInfo.column,
+      newColumnCreated: colInfo.isNew,
+      message: colInfo.isNew 
+        ? "✅ Added new attendance date column for " + today + " at column " + colInfo.column + " with student checkboxes." 
+        : "ℹ️ Attendance column for " + today + " already exists at column " + colInfo.column + "."
+    })).setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ status: "error", message: err.toString() }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
 function doPost(e) {
   try {
     var data = {};
@@ -85,32 +108,14 @@ function doPost(e) {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var sheet = ss.getSheetByName("Sheet1") || ss.getSheets()[0];
     
-    // Format Today's Date: DD-MM-YYYY (e.g. 08-09-2026, matching sheet format)
+    // Format Today's Date: DD-MM-YYYY (e.g. 08-09-2026)
     var today = Utilities.formatDate(new Date(), "Asia/Kolkata", "dd-MM-yyyy");
     
-    var lastCol = sheet.getLastColumn();
+    // 1. Get or dynamically create today's date column with full formatting & checkboxes
+    var colInfo = getOrCreateDateColumn(sheet, today);
+    var targetCol = colInfo.column;
+
     var lastRow = sheet.getLastRow();
-    var dateRow = 2; // Date strings are on Row 2
-    var targetCol = -1;
-
-    // 1. Find or create the column for today's date (starting from column I / col 9)
-    for (var col = 9; col <= lastCol; col++) {
-      var cellVal = sheet.getRange(dateRow, col).getValue();
-      if (cellVal) {
-        var formattedCellDate = cellVal instanceof Date 
-          ? Utilities.formatDate(cellVal, "Asia/Kolkata", "dd-MM-yyyy")
-          : cellVal.toString().trim();
-        if (formattedCellDate === today) {
-          targetCol = col;
-          break;
-        }
-      }
-    }
-
-    if (targetCol === -1) {
-      targetCol = lastCol + 1;
-      sheet.getRange(dateRow, targetCol).setValue(today);
-    }
 
     // 2. Locate student in Column B (Email roster)
     var emailRange = sheet.getRange(3, 2, lastRow - 2, 1).getValues();
@@ -120,7 +125,7 @@ function doPost(e) {
       var sheetEmail = emailRange[i][0].toString().trim().toLowerCase();
       // Match exact email or student ID prefix (e.g. 23bcar0050)
       if (sheetEmail && (sheetEmail === studentEmail || sheetEmail.split("@")[0] === studentEmail.split("@")[0])) {
-        studentRow = i + 3; // Offset for header rows
+        studentRow = i + 3; // Offset for header rows (Row 1 & Row 2)
         studentEmail = sheetEmail; // Use canonical roster email
         break;
       }
@@ -135,27 +140,83 @@ function doPost(e) {
     var currentStatus = sheet.getRange(studentRow, targetCol).getValue();
     if (currentStatus === true) {
       var alreadyMsg = "ℹ️ You are already marked PRESENT for today (" + today + ").";
-      // Post to Slack response_url if available
       postToSlack(responseUrl, alreadyMsg);
       return formatOutput(isSlackInteraction, { status: "already_marked", message: alreadyMsg }, alreadyMsg);
     }
 
-    // 4. Mark student as PRESENT (TRUE)
+    // 4. Mark student as PRESENT (TRUE / Checkbox Ticked)
     sheet.getRange(studentRow, targetCol).setValue(true);
     var successMsg = "✅ " + studentName + " (" + studentEmail + ") marked PRESENT for " + today + " in course register!";
 
-    // Post to Slack response_url if available
     postToSlack(responseUrl, successMsg);
 
     return formatOutput(isSlackInteraction, {
       status: "success",
-      message: successMsg
+      message: successMsg,
+      date: today,
+      column: targetCol
     }, successMsg);
 
   } catch (err) {
     var errMsg = "❌ Error recording attendance: " + err.toString();
     return formatOutput(isSlackInteraction, { status: "error", message: errMsg }, errMsg);
   }
+}
+
+/**
+ * Automatically locates today's date column or dynamically appends a new date column
+ * with full header formatting, bold date label, and Google Sheets checkboxes for every student.
+ */
+function getOrCreateDateColumn(sheet, today) {
+  var lastCol = sheet.getLastColumn();
+  var lastRow = sheet.getLastRow();
+  var dateRow = 2; // Date strings are on Row 2
+  
+  // Search existing columns starting from Col 9 (Col I)
+  for (var col = 9; col <= lastCol; col++) {
+    var cellVal = sheet.getRange(dateRow, col).getValue();
+    if (cellVal) {
+      var formattedCellDate = cellVal instanceof Date 
+        ? Utilities.formatDate(cellVal, "Asia/Kolkata", "dd-MM-yyyy")
+        : cellVal.toString().trim();
+      if (formattedCellDate === today) {
+        return { column: col, isNew: false };
+      }
+    }
+  }
+
+  // If not found, create a new column at the end of the sheet
+  var newCol = lastCol + 1;
+
+  // Header on Row 1 (Styled in University Blue)
+  sheet.getRange(1, newCol)
+    .setValue("Attendance")
+    .setFontWeight("bold")
+    .setHorizontalAlignment("center")
+    .setBackground("#1a73e8")
+    .setFontColor("#ffffff");
+
+  // Date label on Row 2 (Bold, Centered, Soft Blue Highlight)
+  sheet.getRange(dateRow, newCol)
+    .setValue(today)
+    .setFontWeight("bold")
+    .setHorizontalAlignment("center")
+    .setBackground("#e8f0fe")
+    .setFontColor("#1967d2")
+    .setNumberFormat("@"); // Store as explicit text string
+
+  // Insert interactive Google Sheets checkboxes for all student rows (Row 3 to lastRow)
+  if (lastRow >= 3) {
+    var studentRange = sheet.getRange(3, newCol, lastRow - 2, 1);
+    studentRange.insertCheckboxes();
+    studentRange.setValue(false); // Default to unchecked (Absent)
+    studentRange.setHorizontalAlignment("center");
+  }
+
+  // Set clean standard column width
+  sheet.setColumnWidth(newCol, 110);
+
+  return { column: newCol, isNew: true };
 }
 
 function postToSlack(responseUrl, text) {
