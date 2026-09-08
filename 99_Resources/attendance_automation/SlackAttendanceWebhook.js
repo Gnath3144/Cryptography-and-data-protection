@@ -21,32 +21,51 @@ function doPost(e) {
       return responseJSON({ status: "error", message: "No data received" });
     }
 
-    // Extract student email, username, and channel info
-    var studentEmail = (data.email || data.user_email || "").trim().toLowerCase();
-    var studentName = data.user_name || data.name || "Student";
-    var channelId = (data.channel_id || data.channel || "").trim();
-    var channelName = (data.channel_name || "").trim().toLowerCase();
+    var isSlackInteraction = false;
+    var responseUrl = "";
+
+    // Check if request comes from Slack Interactive Button click
+    if (data.payload) {
+      isSlackInteraction = true;
+      var payloadObj = (typeof data.payload === "string") ? JSON.parse(data.payload) : data.payload;
+      var user = payloadObj.user || {};
+      var channel = payloadObj.channel || {};
+      responseUrl = payloadObj.response_url || "";
+      
+      var studentName = user.name || user.username || "Student";
+      var channelId = channel.id || "";
+      var channelName = channel.name || "";
+      
+      // Match university email from Slack username (e.g. 23bcar0050 -> 23bcar0050@jainuniversity.ac.in)
+      var studentEmail = "";
+      if (user.username) {
+        var u = user.username.toLowerCase();
+        studentEmail = u.includes("@") ? u : (u + "@jainuniversity.ac.in");
+      }
+    } else {
+      // Direct JSON / n8n HTTP Request
+      var studentEmail = (data.email || data.user_email || "").trim().toLowerCase();
+      var studentName = data.user_name || data.name || "Student";
+      var channelId = (data.channel_id || data.channel || "").trim();
+      var channelName = (data.channel_name || "").trim().toLowerCase();
+    }
 
     // TARGET CHANNEL VERIFICATION: C0C0U2PJ43A (#board-infinity)
     var targetChannelId = "C0C0U2PJ43A";
     if (channelId && channelId !== targetChannelId && !channelName.includes("board")) {
-      return responseJSON({
-        status: "error",
-        message: "Attendance must be submitted from #board-infinity (Channel ID: " + targetChannelId + ")."
-      });
+      var msg = "⚠️ Attendance must be submitted from #board-infinity (Channel ID: " + targetChannelId + ").";
+      return formatOutput(isSlackInteraction, { status: "error", message: msg }, msg);
     }
 
     if (!studentEmail) {
-      return responseJSON({ 
-        status: "error", 
-        message: "Could not find email. Ensure student Slack account uses the @jainuniversity.ac.in email address." 
-      });
+      var msg = "⚠️ Could not identify student email. Ensure your Slack username matches your @jainuniversity.ac.in ID.";
+      return formatOutput(isSlackInteraction, { status: "error", message: msg }, msg);
     }
 
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var sheet = ss.getSheetByName("Sheet1") || ss.getSheets()[0];
     
-    // Format Today's Date: DD-MM-YYYY (e.g. 07-09-2026, matching sheet format)
+    // Format Today's Date: DD-MM-YYYY (e.g. 08-09-2026, matching sheet format)
     var today = Utilities.formatDate(new Date(), "Asia/Kolkata", "dd-MM-yyyy");
     
     var lastCol = sheet.getLastColumn();
@@ -58,71 +77,91 @@ function doPost(e) {
     for (var col = 9; col <= lastCol; col++) {
       var cellVal = sheet.getRange(dateRow, col).getValue();
       if (cellVal) {
-        var colDateStr = (cellVal instanceof Date) 
+        var formattedCellDate = cellVal instanceof Date 
           ? Utilities.formatDate(cellVal, "Asia/Kolkata", "dd-MM-yyyy")
           : cellVal.toString().trim();
-        if (colDateStr === today) {
+        if (formattedCellDate === today) {
           targetCol = col;
           break;
         }
       }
     }
 
-    // If today's column does not exist, automatically append it!
     if (targetCol === -1) {
       targetCol = lastCol + 1;
-      sheet.getRange(1, targetCol).setValue("Date");
       sheet.getRange(dateRow, targetCol).setValue(today);
-      // Initialize checkboxes for all students to FALSE
-      for (var r = 3; r <= lastRow; r++) {
-        sheet.getRange(r, targetCol).setValue(false);
-      }
     }
 
-    // 2. Search for student by Column B (Email)
+    // 2. Locate student in Column B (Email roster)
     var emailRange = sheet.getRange(3, 2, lastRow - 2, 1).getValues();
     var studentRow = -1;
 
     for (var i = 0; i < emailRange.length; i++) {
-      var rowEmail = emailRange[i][0].toString().trim().toLowerCase();
-      if (rowEmail === studentEmail) {
-        studentRow = i + 3; // +3 for 1-based indexing and 2 header rows
+      var sheetEmail = emailRange[i][0].toString().trim().toLowerCase();
+      // Match exact email or student ID prefix (e.g. 23bcar0050)
+      if (sheetEmail && (sheetEmail === studentEmail || sheetEmail.split("@")[0] === studentEmail.split("@")[0])) {
+        studentRow = i + 3; // Offset for row 1 & 2
+        studentEmail = sheetEmail; // Use canonical roster email
         break;
       }
     }
 
     if (studentRow === -1) {
-      return responseJSON({
-        status: "not_found",
-        message: "Email " + studentEmail + " not found in student roster."
-      });
+      var msg = "❌ Student email (" + studentEmail + ") was not found in the official class roster.";
+      return formatOutput(isSlackInteraction, { status: "not_found", message: msg }, msg);
     }
 
     // 3. Prevent duplicate check-ins
     var currentStatus = sheet.getRange(studentRow, targetCol).getValue();
     if (currentStatus === true) {
-      return responseJSON({
-        status: "already_marked",
-        message: "You are already marked PRESENT for today (" + today + ")."
-      });
+      var msg = "ℹ️ You are already marked PRESENT for today (" + today + ").";
+      return formatOutput(isSlackInteraction, { status: "already_marked", message: msg }, msg);
     }
 
     // 4. Mark student as PRESENT (TRUE)
     sheet.getRange(studentRow, targetCol).setValue(true);
+    var successMsg = "✅ " + studentName + " (" + studentEmail + ") marked PRESENT for " + today + " in course register!";
 
-    return responseJSON({
+    // If Slack response_url is available, post immediate confirmation
+    if (responseUrl) {
+      try {
+        UrlFetchApp.fetch(responseUrl, {
+          method: "post",
+          contentType: "application/json",
+          payload: JSON.stringify({
+            response_type: "ephemeral",
+            replace_original: false,
+            text: successMsg
+          }),
+          muteHttpExceptions: true
+        });
+      } catch (postErr) {
+        Logger.log("responseUrl post error: " + postErr);
+      }
+    }
+
+    return formatOutput(isSlackInteraction, {
       status: "success",
-      message: "✅ " + studentName + " (" + studentEmail + ") marked PRESENT for " + today
-    });
+      message: successMsg
+    }, successMsg);
 
   } catch (err) {
-    return responseJSON({ status: "error", message: err.toString() });
+    var errMsg = "❌ Error recording attendance: " + err.toString();
+    return formatOutput(isSlackInteraction, { status: "error", message: errMsg }, errMsg);
   }
 }
 
-function responseJSON(obj) {
-  return ContentService.createTextOutput(JSON.stringify(obj))
-    .setMimeType(ContentService.MimeType.JSON);
+function formatOutput(isSlackInteraction, standardObj, slackText) {
+  if (isSlackInteraction) {
+    return ContentService.createTextOutput(JSON.stringify({
+      response_type: "ephemeral",
+      replace_original: false,
+      text: slackText
+    })).setMimeType(ContentService.MimeType.JSON);
+  } else {
+    return ContentService.createTextOutput(JSON.stringify(standardObj))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
 }
 
 function parseQueryString(str) {
