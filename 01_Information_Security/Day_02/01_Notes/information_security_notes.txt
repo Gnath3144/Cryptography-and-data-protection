@@ -1,0 +1,99 @@
+================================================================================
+CRYPTOGRAPHY AND DATA PROTECTION — DAY 02 LECTURE NOTES
+COURSE MODULE: 01_Information_Security
+TOPIC: Core Concepts of Information Security, CIA Triad, Risk Management & Defense-in-Depth
+================================================================================
+
+1. INTRODUCTION TO INFORMATION SECURITY
+--------------------------------------------------------------------------------
+Information Security (InfoSec) is the practice of protecting information and information 
+systems from unauthorized access, use, disclosure, disruption, modification, or destruction.
+
+Key Distinctions:
+- Cybersecurity: Protecting systems, networks, and data in cyberspace (digital domain).
+- Information Security: Protecting information in all forms (digital, physical, verbal).
+- Data Protection: Regulatory and technical measures ensuring individual privacy and proper handling of PII (Personally Identifiable Information).
+
+2. THE FOUNDATIONAL CIA TRIAD
+--------------------------------------------------------------------------------
+The CIA Triad forms the bedrock of modern security architecture. Every control, policy,
+and cryptographic mechanism maps directly to one or more of these three pillars:
+
+A. CONFIDENTIALITY (Secrecy & Privacy)
+   - Goal: Ensure data is accessible ONLY to authorized entities, individuals, or processes.
+   - Core Mechanisms:
+     * Cryptographic Encryption: Symmetric (AES-256) & Asymmetric (RSA-4096, ECC-256).
+     * Access Control: RBAC (Role-Based Access Control), ABAC (Attribute-Based).
+     * Authentication: Multi-Factor Authentication (MFA, FIDO2/WebAuthn).
+     * Data Masking / Tokenization / Steganography.
+   - Primary Attacks: Eavesdropping, Sniffing, Data Exfiltration, Man-in-the-Middle (MitM).
+
+B. INTEGRITY (Accuracy & Trustworthiness)
+   - Goal: Safeguard the accuracy, completeness, and authenticity of data against unauthorized alteration or deletion.
+   - Core Mechanisms:
+     * Cryptographic Hash Functions: SHA-256, SHA-3, BLAKE2 (one-way, collision-resistant).
+     * Message Authentication Codes (MAC / HMAC).
+     * Digital Signatures (Asymmetric key signing + Hash verification).
+     * File Integrity Monitoring (FIM) & Append-Only Immutable Ledgers.
+   - Primary Attacks: Tampering, Bit-flipping, Replay attacks, SQL Injection, Unauthorized database updates.
+
+C. AVAILABILITY (Reliability & Timely Access)
+   - Goal: Ensure information and resources are timely and reliably accessible to authorized users when needed.
+   - Core Mechanisms:
+     * Redundancy: High Availability (HA) clusters, Multi-Region replication.
+     * DDoS Mitigation: CDN caching (Cloudflare/Akamai), Rate Limiting, Anycast routing.
+     * Backups: 3-2-1 Backup Strategy (3 copies, 2 media types, 1 offsite/immutable).
+     * Disaster Recovery (DR) & Business Continuity Planning (BCP).
+     * SLA Metrics: MTBF (Mean Time Between Failures), MTTR (Mean Time to Repair), RPO, RTO.
+   - Primary Attacks: DoS/DDoS floods, Ransomware wiping, Physical hardware destruction, Power outages.
+
+3. EXTENDED SECURITY MODELS: THE PARKERIAN HEXAD
+--------------------------------------------------------------------------------
+Introduced by Donn B. Parker, expanding the CIA triad to six distinct attributes:
+1. Confidentiality: Controlled disclosure.
+2. Integrity: Preventing improper alteration.
+3. Availability: Timely, dependable access.
+4. Authenticity: Verification of true identity and source origin (Non-repudiation).
+5. Possession / Control: Physical or digital ownership of media (e.g. stolen encrypted laptop).
+6. Utility: Usability and fitness for purpose (e.g. encrypted data whose key is lost has lost utility).
+
+4. RISK MANAGEMENT & EQUATIONS
+--------------------------------------------------------------------------------
+Security is not binary; it is an optimization problem balancing security against usability and cost.
+
+Core Terminology:
+- Asset: Anything of value requiring protection (customer database, proprietary algorithms).
+- Vulnerability: A flaw or weakness in design, implementation, or operation (unpatched software, weak passwords).
+- Threat: Any circumstance or event with the potential to cause harm.
+- Threat Actor: The entity executing the threat (nation-state APT, insider, script kiddie, cybercriminal).
+- Exploit: A specific method or code leveraging a vulnerability to compromise an asset.
+- Impact: The financial, operational, regulatory, or reputational damage caused by an incident.
+
+The Classic Risk Formula:
+   Risk = Threat × Vulnerability × Impact
+
+Risk Treatment Options:
+1. Risk Mitigation (Reduction): Implementing security controls (e.g. MFA, WAF, encryption).
+2. Risk Transfer: Offloading risk to third parties (e.g. Cyber insurance, SaaS hosting).
+3. Risk Avoidance: Halting the risky activity (e.g. disabling unused vulnerable services).
+4. Risk Acceptance: Tolerating the residual risk when mitigation cost exceeds potential loss.
+
+5. DEFENSE-IN-DEPTH (DiD) ARCHITECTURE
+--------------------------------------------------------------------------------
+Never rely on a single defensive control. Implement overlapping, concentric layers:
+1. Physical Layer: Biometrics, server room badge access, security cameras.
+2. Perimeter Layer: Next-Gen Firewalls (NGFW), DDoS scrubbing, WAF.
+3. Network Layer: Micro-segmentation, VLANs, Zero Trust Network Access (ZTNA), IDS/IPS.
+4. Host/Endpoint Layer: EDR (Endpoint Detection & Response), OS hardening, patch management.
+5. Application Layer: Secure SDLC, input sanitization, OAuth2/OIDC, API gateways.
+6. Data Layer: Encryption at rest (AES-256), Encryption in transit (TLS 1.3), DLP (Data Loss Prevention).
+
+6. CORE SECURITY DESIGN PRINCIPLES
+--------------------------------------------------------------------------------
+- Least Privilege: Grant users and services only the minimum permissions necessary to perform their duty.
+- Separation of Duties (SoD): Divide critical operations across multiple entities to prevent unilateral fraud.
+- Fail-Safe Defaults: Deny access by default; permit access only by explicit exception.
+- Economy of Mechanism: Keep security designs simple and auditable; complexity breeds vulnerabilities.
+- Complete Mediation: Every access attempt must be checked against access controls, never cached insecurely.
+- Open Design (Kerckhoffs's Principle): Security must rely on the secrecy of the key, NOT the obscurity of the algorithm.
+================================================================================

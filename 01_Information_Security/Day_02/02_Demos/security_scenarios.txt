@@ -1,0 +1,121 @@
+================================================================================
+CRYPTOGRAPHY AND DATA PROTECTION — DAY 02 CASE DEMOS
+COURSE MODULE: 01_Information_Security
+FILE: 02_Demos/security_scenarios.txt
+================================================================================
+
+SCENARIO 1: THE UNENCRYPTED HEALTHCARE DATABASE BREACH
+--------------------------------------------------------------------------------
+• Pillar Compromised: CONFIDENTIALITY
+• Context: 
+  A regional hospital stores electronic health records (EHR) of 450,000 patients in an 
+  AWS RDS PostgreSQL database. The database backup snapshots were stored in a publicly 
+  accessible Amazon S3 bucket with default server-side encryption disabled.
+• The Attack:
+  An automated threat scanner identified the open S3 bucket. The adversary downloaded 
+  180 GB of patient data containing Patient Names, SSNs, Diagnoses, Prescriptions, and 
+  Billing Cards.
+• Impact:
+  - Severe violation of HIPAA and GDPR regulations.
+  - $4.2M regulatory fines + mandatory 5-year federal audits.
+  - Extortion threat against prominent local patients.
+• Architectural Root Cause:
+  - Lack of data encryption at rest.
+  - Missing bucket policies and automated public access block.
+  - Failure of least privilege in cloud IAM roles.
+• Remediation & Countermeasures:
+  1. Mandate AWS KMS customer-managed encryption (CMEK) for all data at rest.
+  2. Implement S3 Block Public Access at the AWS Organization Service Control Policy (SCP) level.
+  3. Deploy automated CloudTrail alerting via Amazon GuardDuty for anomalous bucket queries.
+
+
+SCENARIO 2: MAN-IN-THE-MIDDLE WIRE TRANSFER MANIPULATION
+--------------------------------------------------------------------------------
+• Pillar Compromised: INTEGRITY
+• Context:
+  A multinational logistics enterprise conducts inter-bank settlement instructions via 
+  an automated HTTP REST API connected to an offshore banking gateway.
+• The Attack:
+  The API connection between the client server and the banking endpoint utilized 
+  unencrypted HTTP on an internal corporate WAN. An insider threat deployed ARP cache 
+  poisoning on the gateway router, intercepting transit packets. The attacker silently 
+  modified the destination IBAN and swift codes on outgoing JSON payloads while keeping 
+  the transaction amount identical ($125,000).
+• Impact:
+  - Six unauthorized wire transfers totaling $750,000 diverted to offshore mule accounts.
+  - Reconciliation discrepancies identified only during end-of-month accounting audits.
+• Architectural Root Cause:
+  - Absence of transport-layer encryption (Plaintext HTTP).
+  - Lack of payload-level message authentication codes (HMAC) or digital signatures.
+• Remediation & Countermeasures:
+  1. Enforce Mutual TLS (mTLS) with strict certificate pinning between client and bank.
+  2. Implement cryptographic HMAC-SHA256 request payload signing with nonces and timestamps.
+  3. Deploy Dynamic ARP Inspection (DAI) and 802.1X port security on network switches.
+
+
+SCENARIO 3: UNIVERSITY EXAM PORTAL DISTRIBUTED DENIAL-OF-SERVICE (DDoS)
+--------------------------------------------------------------------------------
+• Pillar Compromised: AVAILABILITY
+• Context:
+  A major university hosts its centralized online semester examination portal on an 
+  on-premises data center with a 1 Gbps redundant fiber uplink.
+• The Attack:
+  Ten minutes before the final cryptography exam scheduled for 4,000 concurrent students, 
+  a disgruntled student rented an IoT botnet (Mirai variant) via darknet booter services. 
+  The botnet blasted 45 Gbps of DNS amplification traffic and HTTP POST floods directly 
+  at the portal's public IP address.
+• Impact:
+  - Complete exhaustion of edge firewall connection states and uplink bandwidth.
+  - The exam portal became totally unresponsive for 3.5 hours; exam cancellation required.
+  - Reputational damage and schedule disruption for 4,000 students.
+• Architectural Root Cause:
+  - Single point of failure: lack of cloud-scale scrubbing and CDN edge distribution.
+  - No upstream BGP Anycast DDoS mitigation or rate-limiting appliances.
+• Remediation & Countermeasures:
+  1. Deploy a cloud-based WAF/DDoS scrubbing service (Cloudflare Magic Transit or AWS Shield).
+  2. Configure Layer 7 rate-limiting and challenge-response (CAPTCHA / Managed Challenge).
+  3. Decouple exam client sessions via stateless Redis session clusters and static asset CDN caching.
+
+
+SCENARIO 4: PHISHING & REPLAY COMPROMISE OF CODE REPOSITORY
+--------------------------------------------------------------------------------
+• Pillars Compromised: CONFIDENTIALITY & AUTHENTICITY
+• Context:
+  A senior software engineer received a spear-phishing email simulating a mandatory GitHub 
+  security update. The engineer entered credentials on a reverse-proxy phishing site 
+  (Evilginx2).
+• The Attack:
+  The reverse proxy intercepted the engineer's username, password, and session cookie 
+  (bypassing legacy SMS-based 2FA). The adversary used the hijacked session cookie to 
+  clone the enterprise's core intellectual property repositories.
+• Impact:
+  - Proprietary algorithmic source code leaked and sold on dark web forums.
+• Architectural Root Cause:
+  - Reliance on phishable 2FA (SMS OTPs can be intercepted via reverse proxies).
+  - Absence of IP/device-bound conditional access controls.
+• Remediation & Countermeasures:
+  1. Enforce FIDO2 / WebAuthn hardware security keys (YubiKey) which are cryptographically phishing-resistant.
+  2. Implement Conditional Access Policies (MDR / compliant device health checks).
+
+
+SCENARIO 5: HEALTHCARE RANSOMWARE EXTORTION ATTACK
+--------------------------------------------------------------------------------
+• Pillars Compromised: AVAILABILITY, INTEGRITY & CONFIDENTIALITY
+• Context:
+  A hospital network was breached via an unpatched VPN appliance (CVE-2023-xxxx). 
+  Adversaries established persistence, moved laterally, and deployed LockBit ransomware.
+• The Attack:
+  The ransomware encrypted all critical databases, PACS imaging archives, and active 
+  directory domain controllers with AES-256-CBC, leaving a .txt ransom note demanding 50 BTC. 
+  Crucially, the online shadow copies and network-mounted backups were wiped simultaneously.
+• Impact:
+  - Emergency room surgeries cancelled; ambulances diverted to neighboring facilities.
+  - 12 days required to rebuild systems from offline cold backups.
+• Architectural Root Cause:
+  - Backups were accessible via the same Active Directory credentials (no air-gapping).
+  - Delayed security patching of perimeter network infrastructure.
+• Remediation & Countermeasures:
+  1. Implement the 3-2-1-1-0 Backup Rule: 1 copy stored offline / immutable (WORM storage).
+  2. Segment network into isolated zero-trust security zones with micro-firewalls.
+  3. Deploy Automated Endpoint Detection and Response (EDR) with behavioral ransomware blocking.
+================================================================================
