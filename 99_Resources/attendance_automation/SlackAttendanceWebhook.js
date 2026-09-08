@@ -13,19 +13,17 @@ function doGet(e) {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var sheet = ss.getSheetByName("Sheet1") || ss.getSheets()[0];
-    var today = Utilities.formatDate(new Date(), "Asia/Kolkata", "dd-MM-yyyy");
     
-    var colInfo = getOrCreateDateColumn(sheet, today);
+    // Support ?date=07-09-2026 query param, default to today
+    var requestedDate = (e && e.parameter && e.parameter.date) 
+      ? e.parameter.date.trim() 
+      : Utilities.formatDate(new Date(), "Asia/Kolkata", "dd-MM-yyyy");
     
-    return ContentService.createTextOutput(JSON.stringify({
-      status: "success",
-      date: today,
-      column: colInfo.column,
-      newColumnCreated: colInfo.isNew,
-      message: colInfo.isNew 
-        ? "✅ Added new attendance date column for " + today + " at column " + colInfo.column + " with student checkboxes." 
-        : "ℹ️ Attendance column for " + today + " already exists at column " + colInfo.column + "."
-    })).setMimeType(ContentService.MimeType.JSON);
+    var colInfo = getOrCreateDateColumn(sheet, requestedDate);
+    var consolidated = buildConsolidatedColumn(sheet, colInfo.column, requestedDate);
+    
+    return ContentService.createTextOutput(JSON.stringify(consolidated))
+      .setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
     return ContentService.createTextOutput(JSON.stringify({ status: "error", message: err.toString() }))
       .setMimeType(ContentService.MimeType.JSON);
@@ -59,6 +57,17 @@ function doPost(e) {
     } else if (e.parameter) {
       data = e.parameter;
       if (data.payload) rawPayload = data.payload;
+    }
+
+    // Direct Column Consolidation Request for n8n: { action: "get_column", date: "07-09-2026" }
+    var action = (data && data.action) || (e.parameter && e.parameter.action) || "";
+    if (action === "get_column") {
+      var ss = SpreadsheetApp.getActiveSpreadsheet();
+      var sheet = ss.getSheetByName("Sheet1") || ss.getSheets()[0];
+      var targetDate = (data.date || (e.parameter && e.parameter.date) || Utilities.formatDate(new Date(), "Asia/Kolkata", "dd-MM-yyyy")).trim();
+      var colInfo = getOrCreateDateColumn(sheet, targetDate);
+      var consolidated = buildConsolidatedColumn(sheet, colInfo.column, targetDate);
+      return ContentService.createTextOutput(JSON.stringify(consolidated)).setMimeType(ContentService.MimeType.JSON);
     }
 
     if (rawPayload) {
@@ -111,10 +120,10 @@ function doPost(e) {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var sheet = ss.getSheetByName("Sheet1") || ss.getSheets()[0];
     
-    // Format Today's Date: DD-MM-YYYY (e.g. 08-09-2026)
-    var today = Utilities.formatDate(new Date(), "Asia/Kolkata", "dd-MM-yyyy");
+    // Format Today's Date: DD-MM-YYYY (e.g. 07-09-2026 or 08-09-2026)
+    var today = (data.date || (e.parameter && e.parameter.date) || Utilities.formatDate(new Date(), "Asia/Kolkata", "dd-MM-yyyy")).trim();
     
-    // 1. Get or dynamically create today's date column with full formatting & checkboxes
+    // 1. Get or dynamically create today's date column with Date header & checkboxes
     var colInfo = getOrCreateDateColumn(sheet, today);
     var targetCol = colInfo.column;
 
@@ -144,7 +153,15 @@ function doPost(e) {
     if (currentStatus === true) {
       var alreadyMsg = "ℹ️ *Already Recorded:* You are already marked *PRESENT* for today (" + today + ").";
       postToSlack(responseUrl, alreadyMsg, false);
-      return formatOutput(isSlackInteraction, { status: "already_marked", message: alreadyMsg }, alreadyMsg);
+      
+      var consolidatedData = buildConsolidatedColumn(sheet, targetCol, today);
+      return formatOutput(isSlackInteraction, { 
+        status: "already_marked", 
+        message: alreadyMsg,
+        date: today,
+        column: targetCol,
+        consolidated: consolidatedData
+      }, alreadyMsg);
     }
 
     // 4. Mark student as PRESENT (TRUE / Checkbox Ticked)
@@ -157,17 +174,89 @@ function doPost(e) {
     // B. Send live attendance broadcast to #board-infinity channel
     notifyChannelAttendance(studentName, studentEmail, today);
 
+    // C. Build consolidated single-column output for n8n automation
+    var consolidatedData = buildConsolidatedColumn(sheet, targetCol, today);
+
     return formatOutput(isSlackInteraction, {
       status: "success",
       message: successMsg,
       date: today,
-      column: targetCol
+      column: targetCol,
+      raw_column_text: consolidatedData.raw_column_text,
+      column_values: consolidatedData.column_values,
+      items: consolidatedData.items,
+      summary: consolidatedData.summary
     }, successMsg, true, studentName, studentEmail, today);
 
   } catch (err) {
     var errMsg = "❌ Error recording attendance: " + err.toString();
     return formatOutput(isSlackInteraction, { status: "error", message: errMsg }, errMsg);
   }
+}
+
+/**
+ * Builds the exact consolidated single-column format requested for n8n:
+ * Row 1: "Date"
+ * Row 2: "07-09-2026"
+ * Row 3..N: "TRUE" / "FALSE" for each student in the roster
+ */
+function buildConsolidatedColumn(sheet, col, dateStr) {
+  var lastRow = sheet.getLastRow();
+  var colValues = [];
+  var rawTextLines = [];
+  var items = [];
+  var presentCount = 0;
+  var absentCount = 0;
+
+  // Row 1: Header ("Date")
+  var headerVal = "Date";
+  colValues.push(headerVal);
+  rawTextLines.push(headerVal);
+  items.push({ row: 1, value: headerVal });
+
+  // Row 2: Date String ("07-09-2026")
+  colValues.push(dateStr);
+  rawTextLines.push(dateStr);
+  items.push({ row: 2, value: dateStr });
+
+  // Rows 3 to lastRow: Student Attendance Booleans (TRUE / FALSE)
+  if (lastRow >= 3) {
+    var rangeVals = sheet.getRange(3, col, lastRow - 2, 1).getValues();
+    for (var i = 0; i < rangeVals.length; i++) {
+      var rowNum = i + 3;
+      var rawVal = rangeVals[i][0];
+      var isPresent = (rawVal === true || rawVal === "TRUE" || rawVal === "true" || rawVal === 1);
+      var strVal = isPresent ? "TRUE" : "FALSE";
+      
+      if (isPresent) {
+        presentCount++;
+      } else {
+        absentCount++;
+      }
+
+      colValues.push(strVal);
+      rawTextLines.push(strVal);
+      items.push({ row: rowNum, value: strVal, boolean: isPresent });
+    }
+  }
+
+  return {
+    status: "success",
+    date: dateStr,
+    column: col,
+    header: "Date",
+    raw_column_text: rawTextLines.join("\n"),
+    column_values: colValues,
+    items: items,
+    summary: {
+      total_students: presentCount + absentCount,
+      present: presentCount,
+      absent: absentCount,
+      attendance_percentage: (presentCount + absentCount > 0) 
+        ? ((presentCount / (presentCount + absentCount)) * 100).toFixed(1) + "%" 
+        : "0%"
+    }
+  };
 }
 
 /**
@@ -187,6 +276,8 @@ function getOrCreateDateColumn(sheet, today) {
         ? Utilities.formatDate(cellVal, "Asia/Kolkata", "dd-MM-yyyy")
         : cellVal.toString().trim();
       if (formattedCellDate === today) {
+        // Ensure Row 1 has "Date" header
+        sheet.getRange(1, col).setValue("Date");
         return { column: col, isNew: false };
       }
     }
@@ -195,15 +286,15 @@ function getOrCreateDateColumn(sheet, today) {
   // If not found, create a new column at the end of the sheet
   var newCol = lastCol + 1;
 
-  // Header on Row 1 (Styled in University Blue)
+  // Header on Row 1 (Explicitly "Date" styled in University Blue)
   sheet.getRange(1, newCol)
-    .setValue("Attendance")
+    .setValue("Date")
     .setFontWeight("bold")
     .setHorizontalAlignment("center")
     .setBackground("#1a73e8")
     .setFontColor("#ffffff");
 
-  // Date label on Row 2 (Bold, Centered, Soft Blue Highlight)
+  // Date label on Row 2 (e.g. 07-09-2026)
   sheet.getRange(dateRow, newCol)
     .setValue(today)
     .setFontWeight("bold")
@@ -216,7 +307,7 @@ function getOrCreateDateColumn(sheet, today) {
   if (lastRow >= 3) {
     var studentRange = sheet.getRange(3, newCol, lastRow - 2, 1);
     studentRange.insertCheckboxes();
-    studentRange.setValue(false); // Default to unchecked (Absent)
+    studentRange.setValue(false); // Default to unchecked (FALSE / Absent)
     studentRange.setHorizontalAlignment("center");
   }
 
@@ -282,7 +373,7 @@ function postToSlack(responseUrl, text, isSuccess, studentName, studentEmail, to
  * Live broadcast to #board-infinity channel
  */
 function notifyChannelAttendance(studentName, studentEmail, today) {
-  if (!SLACK_CHANNEL_WEBHOOK) return;
+  if (!SLACK_CHANNEL_WEBHOOK || SLACK_CHANNEL_WEBHOOK.includes("YOUR_WORKSPACE")) return;
   try {
     UrlFetchApp.fetch(SLACK_CHANNEL_WEBHOOK, {
       method: "post",

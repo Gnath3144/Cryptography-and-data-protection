@@ -92,6 +92,69 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [950, 480]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "50 10 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger-1050",
+      "name": "End of Class Schedule (10:50 AM)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 720]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://script.google.com/macros/s/AKfycbxyjzGoMgkJjpxu9ay8OgxnGPeazM7IUuS37nS31S1RmDoR6C6H7rw0sGRokaU5oh_3/exec",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"action\": \"get_column\",\n  \"date\": \"{{ $today.format('dd-MM-yyyy') }}\"\n}",
+        "options": {
+          "redirect": {
+            "redirect": {
+              "followRedirects": true
+            }
+          }
+        }
+      },
+      "id": "fetch-consolidated-column",
+      "name": "Fetch Consolidated Column from Sheets",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 720]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Consolidates attendance into a single-column array & text block\nconst res = $input.first().json;\nconst rawText = res.raw_column_text || '';\nconst values = res.column_values || [];\nconst items = res.items || [];\nconst summary = res.summary || {};\n\nreturn [{\n  json: {\n    header: 'Date',\n    date: res.date || '07-09-2026',\n    column: res.column || 9,\n    raw_single_column_output: rawText,\n    column_rows: items,\n    summary: summary\n  }\n}];"
+      },
+      "id": "format-single-column",
+      "name": "Format Single Column Output for n8n",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [700, 720]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SLACK_ATTENDANCE_WEBHOOK_URL || 'https://hooks.slack.com/services/YOUR/WEBHOOK/URL' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"text\": \"📊 *Daily Attendance Consolidated Report ({{ $json.date }})*\\n• *Total Students*: {{ $json.summary.total_students }}\\n• *Present*: {{ $json.summary.present }} ({{ $json.summary.attendance_percentage }})\\n• *Absent*: {{ $json.summary.absent }}\\n```\\n{{ $json.raw_single_column_output }}\\n```\"\n}",
+        "options": {}
+      },
+      "id": "post-attendance-summary-slack",
+      "name": "Post Consolidated Column to #board-infinity",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [950, 720]
     }
   ],
   "connections": {
@@ -133,6 +196,39 @@
         [
           {
             "node": "Send Ephemeral Confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "End of Class Schedule (10:50 AM)": {
+      "main": [
+        [
+          {
+            "node": "Fetch Consolidated Column from Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Consolidated Column from Sheets": {
+      "main": [
+        [
+          {
+            "node": "Format Single Column Output for n8n",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Single Column Output for n8n": {
+      "main": [
+        [
+          {
+            "node": "Post Consolidated Column to #board-infinity",
             "type": "main",
             "index": 0
           }
